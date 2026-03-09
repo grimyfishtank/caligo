@@ -1,0 +1,42 @@
+[package]
+name = "caligo-indexer"
+version = "0.1.0"
+edition = "2021"
+publish = false
+description = "Soroban event indexer for the Caligo ZK mixer protocol"
+
+[[bin]]
+name = "caligo-indexer"
+path = "src/main.rs"
+
+[dependencies]
+# Poseidon hashing — must match the on-chain implementation exactly
+light-poseidon = "0.2"
+ark-bn254 = { version = "0.4.0", features = ["curve"] }
+ark-ec = "0.4.2"
+ark-ff = "0.4.2"
+
+# HTTP server
+axum = "0.7"
+tokio = { version = "1", features = ["full"] }
+tower-http = { version = "0.5", features = ["cors"] }
+
+# HTTP client for Soroban RPC
+reqwest = { version = "0.12", features = ["json"] }
+
+# Serialization
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+
+# Stellar XDR decoding
+stellar-xdr = { version = "22.0.0", features = ["std", "base64"] }
+
+# Logging
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+
+# Hex encoding
+hex = "0.4"
+
+# Base64 decoding for XDR
+base64 = "0.22"
