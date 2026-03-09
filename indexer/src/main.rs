@@ -14,8 +14,11 @@
 //!   TREE_DEPTH           — Merkle tree depth (default: 20)
 //!   API_PORT             — REST API port (default: 3001)
 //!   POLL_INTERVAL_SECS   — Event polling interval in seconds (default: 5)
+//!   DATABASE_URL         — PostgreSQL URL (optional, enables persistent storage)
+//!                          Example: postgres://user:pass@localhost:5432/caligo
 
 mod api;
+pub mod db;
 mod listener;
 mod merkle;
 mod poseidon;
@@ -54,6 +57,66 @@ async fn main() {
         .expect("POLL_INTERVAL_SECS must be a valid integer");
 
     let shared_state = state::new_shared_state(contract_id, denomination, tree_depth);
+
+    // Optionally connect to PostgreSQL for persistent storage
+    #[cfg(feature = "postgres")]
+    {
+        if let Ok(database_url) = std::env::var("DATABASE_URL") {
+            match db::Database::connect(&database_url).await {
+                Ok(database) => {
+                    info!("PostgreSQL storage enabled");
+
+                    // Restore state from database
+                    let mut state = shared_state.write().await;
+                    match database.get_all_commitments().await {
+                        Ok(commitments) => {
+                            for (_, commitment) in &commitments {
+                                state.tree.insert(*commitment);
+                            }
+                            if !commitments.is_empty() {
+                                info!(
+                                    "Restored {} commitments from database",
+                                    commitments.len()
+                                );
+                            }
+                        }
+                        Err(e) => {
+                            tracing::error!("Failed to restore commitments: {}", e);
+                        }
+                    }
+
+                    match database.get_last_ledger().await {
+                        Ok(ledger) if ledger > 0 => {
+                            state.last_ledger = ledger;
+                            info!("Resuming from ledger {}", ledger);
+                        }
+                        _ => {}
+                    }
+                    drop(state);
+
+                    // Store database handle in shared state
+                    {
+                        let mut state = shared_state.write().await;
+                        state.database = Some(std::sync::Arc::new(database));
+                    }
+                }
+                Err(e) => {
+                    tracing::warn!(
+                        "Failed to connect to PostgreSQL: {}. Running in-memory only.",
+                        e
+                    );
+                }
+            }
+        } else {
+            info!("No DATABASE_URL set — running with in-memory storage only");
+        }
+    }
+
+    #[cfg(not(feature = "postgres"))]
+    {
+        info!("PostgreSQL support not compiled — running with in-memory storage");
+        info!("  Build with: cargo run --features postgres");
+    }
 
     // Start event listener in background
     let listener_state = shared_state.clone();

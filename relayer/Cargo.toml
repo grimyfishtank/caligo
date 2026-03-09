@@ -1,0 +1,36 @@
+[package]
+name = "caligo-relayer"
+version = "0.1.0"
+edition = "2021"
+publish = false
+description = "Relay server for the Caligo ZK mixer — broadcasts withdrawal transactions on behalf of users"
+
+[[bin]]
+name = "caligo-relayer"
+path = "src/main.rs"
+
+[dependencies]
+# HTTP server
+axum = "0.7"
+tokio = { version = "1", features = ["full"] }
+tower-http = { version = "0.5", features = ["cors"] }
+
+# HTTP client for Soroban RPC
+reqwest = { version = "0.12", features = ["json"] }
+
+# Serialization
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+
+# Stellar
+stellar-strkey = "0.0.11"
+
+# Logging
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+
+# Hex encoding
+hex = "0.4"
+
+# Ed25519 key derivation
+ed25519-dalek = "2"

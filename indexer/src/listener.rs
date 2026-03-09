@@ -150,7 +150,7 @@ async fn poll_events(
 
     let mut count = 0;
     let mut state = state.write().await;
-    state.last_ledger = result.latest_ledger;
+    state.update_last_ledger(result.latest_ledger);
 
     for event in &result.events {
         // Look for deposit events: topic contains "deposit"

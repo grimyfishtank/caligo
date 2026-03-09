@@ -40,3 +40,10 @@ hex = "0.4"
 
 # Base64 decoding for XDR
 base64 = "0.22"
+
+# PostgreSQL (optional — enabled via --features postgres)
+sqlx = { version = "0.8", features = ["runtime-tokio", "postgres"], optional = true }
+
+[features]
+default = []
+postgres = ["sqlx"]

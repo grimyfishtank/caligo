@@ -6,6 +6,7 @@ members = [
 ]
 exclude = [
     "indexer",
+    "relayer",
 ]
 
 [workspace.dependencies]

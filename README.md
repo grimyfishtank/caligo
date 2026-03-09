@@ -67,8 +67,9 @@ Caligo is inspired by privacy protocols like Tornado Cash, rebuilt from scratch 
 | **MixerPool Contract** | Rust (Soroban) | Core privacy pool — accepts deposits, verifies Groth16 proofs, pays withdrawals |
 | **RelayerRegistry Contract** | Rust (Soroban) | Permissionless relayer registration with fee cap enforcement |
 | **ZK Circuits** | Circom 2 | Groth16 withdrawal proof circuit with Poseidon hashing and Merkle inclusion |
-| **Client SDK** | TypeScript | Secret generation, proof creation, note management, relayer discovery |
-| **Indexer** | Rust (axum) | Off-chain Soroban event listener, Merkle tree mirror, REST API |
+| **Client SDK** | TypeScript | Secret generation, proof creation (with Web Worker support), note management, relayer discovery |
+| **Relayer Server** | Rust (axum) | Receives proof payloads from clients, broadcasts withdrawal transactions, earns fees |
+| **Indexer** | Rust (axum) | Off-chain Soroban event listener, Merkle tree mirror, REST API, optional PostgreSQL persistence |
 
 ---
 
@@ -115,13 +116,15 @@ caligo/
 ├── client/
 │   ├── src/
 │   │   ├── crypto/           # Poseidon, secrets, encryption, Merkle tree
-│   │   ├── proof/            # snarkjs Groth16 prover/verifier
+│   │   ├── proof/            # snarkjs Groth16 prover/verifier + Web Worker
 │   │   ├── wallet/           # Note store with encrypted backup
 │   │   ├── sdk/              # MixerSDK high-level interface
 │   │   └── relayer/          # Relayer discovery and fee estimation
 │   └── tests/                # Unit, integration, cross-validation, E2E tests
+├── relayer/
+│   └── src/                  # Relay server: validates proofs, broadcasts txs
 ├── indexer/
-│   └── src/                  # Event listener, Merkle mirror, REST API
+│   └── src/                  # Event listener, Merkle mirror, REST API, PostgreSQL
 ├── scripts/
 │   └── deploy.sh             # Testnet deployment automation
 ├── plan.md                   # Full architecture specification
@@ -335,23 +338,28 @@ fn deactivate(env, caller: Address, relayer: Address)
 
 ## Testing
 
-Caligo includes 112+ tests across all components:
+Caligo includes 120+ tests across all components:
 
 | Suite | Count | Coverage |
 |-------|-------|----------|
-| Contract unit tests (MixerPool) | 15+ | Deposits, withdrawals, nullifiers, root history, fee caps |
+| Contract unit tests (MixerPool) | 18+ | Deposits, withdrawals, nullifiers, root history, fee caps, address encoding |
 | Contract unit tests (RelayerRegistry) | 15 | Registration, deactivation, fee limits, queries |
 | Client crypto tests | 34 | Poseidon, encryption, Merkle tree, address encoding |
 | Client wallet tests | 6 | Note store, encrypted backup/restore |
 | Client relayer tests | 8 | Discovery, fee estimation, selection |
+| Client worker-prover tests | 4 | Web Worker wrapper, main-thread fallback |
 | Cross-validation tests | 6 | Rust ↔ TypeScript hash consistency |
 | E2E integration tests | 6 | Full deposit → proof → verify cycle |
+| Relayer server tests | 6 | Request validation, address parsing, hex encoding |
+| Indexer unit tests | 9 | Merkle tree, Poseidon hashing, proof reconstruction |
 | Indexer benchmarks | 1 | BN254 pairing cost measurement |
 
 ```bash
 # Run all tests
-cargo test                          # Rust contracts + indexer
-cd client && npm test               # TypeScript SDK
+cargo test                                           # Rust contracts
+cd client && npm test                                # TypeScript SDK (62 tests)
+cargo test --manifest-path indexer/Cargo.toml        # Indexer (10 tests)
+cargo test --manifest-path relayer/Cargo.toml        # Relayer (6 tests)
 ```
 
 ---
@@ -367,8 +375,9 @@ cd client && npm test               # TypeScript SDK
 
 ### Optimizations
 
-- [ ] **Web Worker proof generation** — Move snarkjs to a Web Worker to unblock the UI
-- [ ] **PostgreSQL indexer storage** — Replace in-memory state with persistent database
+- [x] **Web Worker proof generation** — snarkjs runs in a Web Worker with main-thread fallback
+- [x] **PostgreSQL indexer storage** — Optional persistent storage backend (build with `--features postgres`)
+- [x] **Relayer server** — Standalone relay binary with validation, rate limiting, and fee tracking
 - [ ] **Batch withdrawal processing** — Aggregate multiple withdrawals to reduce per-tx cost
 - [ ] **Circuit optimization** — Reduce R1CS constraint count for faster proof generation
 - [ ] **WASM verifier optimization** — Profile and optimize the on-chain Groth16 verifier
